@@ -2,8 +2,6 @@ import numpy as np
 import abc
 import util
 from game import Agent, Action
-import copy
-from game_state import GameState
 
 import math
 
@@ -45,15 +43,25 @@ class ReflexAgent(Agent):
 
         The evaluation function takes in the current and proposed successor
         GameStates (GameState.py) and returns a number, where higher numbers are better.
-
         """
-
         # Useful information you can extract from a GameState (game_state.py)
 
         successor_game_state = current_game_state.generate_successor(action=action)
         board = successor_game_state.board
 
         return np.sum(getChainedValueTable(board))
+
+
+def score_evaluation_function(current_game_state):
+    """
+    This default evaluation function just returns the score of the state.
+    The score is the same one displayed in the GUI.
+
+    This evaluation function is meant for use with adversarial search agents
+    (not reflex agents).
+    """
+    return current_game_state.score
+
 
 
 def getChainedValueTable(board):
@@ -64,7 +72,6 @@ def getChainedValueTable(board):
         for y in range(col):
             table[x,y] = getChainedValue(x,y,board,t)
     return table
-
 
 
 def getChainedValue (x, y , board, table):
@@ -97,17 +104,6 @@ def getAdjacentTiles(x,y,board):
              np.all(np.array([x,y])+delta>=[0,0])]
 
 
-def score_evaluation_function(current_game_state):
-    """
-    This default evaluation function just returns the score of the state.
-    The score is the same one displayed in the GUI.
-
-    This evaluation function is meant for use with adversarial search agents
-    (not reflex agents).
-    """
-    return current_game_state.score
-
-
 class MultiAgentSearchAgent(Agent):
     """
     This class provides some common elements to all of your
@@ -131,6 +127,7 @@ class MultiAgentSearchAgent(Agent):
     def get_action(self, game_state):
         return
 
+
 def mainFunction(item, game_state):
     # Collect legal moves and successor states
     legal_moves = game_state.get_agent_legal_actions()
@@ -138,7 +135,6 @@ def mainFunction(item, game_state):
     # Choose one of the best actions
     scores = [item.getScore(game_state, action) for action in legal_moves]
     best_score = max(scores)
-    # print(best_score) #TODO need to delete!
     best_indices = [index for index in range(len(scores)) if scores[index] == best_score]
     chosen_index = np.random.choice(best_indices)
     return legal_moves[chosen_index]
@@ -168,7 +164,6 @@ class MinmaxAgent(MultiAgentSearchAgent):
         successor_game_state = current_game_state.generate_successor(action=action)
         return self.minMax(successor_game_state, 1,False)
 
-
     def minMax(self,state,depth,isMax):
         if depth == 2*self.depth:
             return self.evaluation_function(state)
@@ -186,7 +181,6 @@ class MinmaxAgent(MultiAgentSearchAgent):
                 return self.evaluation_function(state)
             successors = [state.generate_successor(1, action=action) for action in legal_moves]
             return min([self.minMax(succ, depth + 1, True) for succ in successors])
-
 
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
@@ -279,8 +273,24 @@ def better_evaluation_function(current_game_state):
 
     DESCRIPTION: <write something here so we know what you did>
     """
-    "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    board = current_game_state.board
+    kernel = np.array([1, -1])
+
+    col_conv = np.abs(np.apply_along_axis(np.convolve, 1, board, kernel, mode="valid"))
+    row_conv = np.abs(np.apply_along_axis(np.convolve, 0, board, kernel, mode="valid"))
+    smoothness = -(np.sum(col_conv) + np.sum(row_conv))
+
+    empty = len(current_game_state.get_empty_tiles()[0])
+
+    col_mono_diffs = (col_conv >= 0).astype(np.int32)
+    row_mono_diffs = (row_conv >= 0).astype(np.int32)
+    col_mono_violations = np.sum(
+        np.abs(np.apply_along_axis(np.convolve, 1, col_mono_diffs, kernel, mode="valid")))
+    row_mono_violations = np.sum(
+        np.abs(np.apply_along_axis(np.convolve, 0, row_mono_diffs, kernel, mode="valid")))
+
+    monotonicity = -(col_mono_violations + row_mono_violations)
+    return smoothness + empty*10 + monotonicity
 
 
 # Abbreviation
